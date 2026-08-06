@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "thinkmoney AI Customer Service - Senior AI Engineer Interview Exercise"
 requires-python = ">=3.12"
 dependencies = [
+    # Both SDKs are imported directly by the web-search fallback, not only
+    # through their LangChain wrappers.
+    "anthropic>=0.86",
+    "openai>=2.0",
     "langgraph>=0.2.60",
     "langchain-core>=0.3.0",
     "langchain-openai>=0.3.0",
@@ -19,7 +23,73 @@ thinkmoney = "src.main:main"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "black>=25.0",
+    "ruff>=0.14",
 ]
+
+[tool.black]
+# 88 is black's default and is already what this codebase wraps to — the only
+# lines over it are string literals, which black does not split.
+line-length = 88
+target-version = ["py312"]
+
+# Files provided by the exercise and never modified. Reformatting them would
+# put noise in the reviewer's diff against the original scaffold, for no gain:
+# they are not our code and their style is not our decision. force-exclude (not
+# extend-exclude) so an explicit `black src/agents/triage.py` skips them too,
+# which keeps `black .` and `black --check .` agreeing on the same file set.
+force-exclude = '''
+(
+    ^/src/__init__\.py
+  | ^/src/__main__\.py
+  | ^/src/agents/__init__\.py
+  | ^/src/agents/triage\.py
+  | ^/src/knowledge_base/__init__\.py
+  | ^/src/knowledge_base/loader\.py
+  | ^/src/tools/account\.py
+  | ^/src/tools/kyc\.py
+  | ^/tests/__init__\.py
+  | ^/tests/test_cli\.py
+  | ^/tests/test_graph\.py
+  | ^/tests/test_knowledge_base\.py
+  | ^/tests/test_models\.py
+  | ^/tests/test_triage\.py
+)
+'''
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+# The same provided-and-unmodified scaffold files black leaves alone. Linting
+# them would report faults nobody here introduced and nobody here should fix in
+# a submission diff. Kept as a separate literal rather than shared with
+# [tool.black] because the two tools take different exclude syntaxes.
+extend-exclude = [
+    "src/__init__.py",
+    "src/__main__.py",
+    "src/agents/__init__.py",
+    "src/agents/triage.py",
+    "src/knowledge_base/__init__.py",
+    "src/knowledge_base/loader.py",
+    "src/tools/account.py",
+    "src/tools/kyc.py",
+    "tests/__init__.py",
+    "tests/test_cli.py",
+    "tests/test_graph.py",
+    "tests/test_knowledge_base.py",
+    "tests/test_models.py",
+    "tests/test_triage.py",
+]
+
+[tool.ruff.lint]
+# E4/E7/E9 (import, statement and syntax errors) and F (pyflakes: undefined
+# names, unused imports and variables) are ruff's default and are the rules
+# that catch real defects. B is flake8-bugbear — mutable default arguments,
+# loop-variable capture in closures, `except` that swallows control flow.
+# Formatting-shaped rules (E1/E2/E3, line length) are left to black rather than
+# argued with twice.
+select = ["E4", "E7", "E9", "F", "B"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

@@ -5,3 +5,13 @@ __pycache__/
 *.pyc
 *.egg-info/
 dist/
+
+# Secrets — API keys must never be committed.
+# Setup uses `export ANTHROPIC_API_KEY=...` (README.md:44); these entries are a
+# guard in case a .env is ever added, since nothing currently loads one.
+.env
+.env.*
+!.env.example
+
+# Audit trail — local runtime artefact, not source.
+audit.log
