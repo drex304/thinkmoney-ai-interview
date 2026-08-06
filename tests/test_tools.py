@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 
 from src.tools import (
     ACCOUNT_TOOLS,
@@ -169,9 +168,7 @@ class TestKycTools:
         from src.tools.kyc import submit_document
 
         result = json.loads(
-            submit_document.invoke(
-                {"user_id": "USR-2847", "document_type": "passport"}
-            )
+            submit_document.invoke({"user_id": "USR-2847", "document_type": "passport"})
         )
         assert result["success"] is True
         assert result["status"] == "pending_review"
@@ -197,19 +194,44 @@ class TestToolGroups:
         assert len(ACCOUNT_TOOLS) == 4
 
     def test_card_tools_count(self):
-        assert len(CARD_TOOLS) == 5
+        # +1 on the provided five: block_merchant_on_card is a card control, so
+        # it lives beside freeze_card rather than with the agent that uses it.
+        assert len(CARD_TOOLS) == 6
 
     def test_transaction_tools_count(self):
         assert len(TRANSACTION_TOOLS) == 4
 
     def test_payment_tools_count(self):
-        assert len(PAYMENT_TOOLS) == 5
+        # +1 on the provided five: cancel_direct_debit sits with its analogue
+        # cancel_standing_order — same operation, different rail.
+        assert len(PAYMENT_TOOLS) == 6
 
     def test_kyc_tools_count(self):
         assert len(KYC_TOOLS) == 4
 
+    def test_agent_owned_tools_are_not_in_the_shared_groups(self):
+        # Detection and cancellation guidance belong to one agent each, so they
+        # live in that agent's package rather than in the bank's tool surface.
+        names = {tool.name for tool in ALL_TOOLS}
+        assert "find_recurring_payments" not in names
+        assert "find_cancellation_guide" not in names
+
     def test_all_tools_count(self):
-        assert len(ALL_TOOLS) == 22
+        # The 22 provided tools, plus the two write tools this submission added
+        # to existing capability groups.
+        assert len(ALL_TOOLS) == 24
+
+    def test_all_tools_count_equals_sum_of_groups(self):
+        assert len(ALL_TOOLS) == sum(
+            len(group)
+            for group in (
+                ACCOUNT_TOOLS,
+                CARD_TOOLS,
+                TRANSACTION_TOOLS,
+                PAYMENT_TOOLS,
+                KYC_TOOLS,
+            )
+        )
 
     def test_all_tools_have_names(self):
         for tool in ALL_TOOLS:
@@ -225,7 +247,9 @@ class TestToolGroups:
 
     def test_no_duplicate_tool_names(self):
         names = [t.name for t in ALL_TOOLS]
-        assert len(names) == len(set(names)), f"Duplicate tool names: {[n for n in names if names.count(n) > 1]}"
+        assert len(names) == len(
+            set(names)
+        ), f"Duplicate tool names: {[n for n in names if names.count(n) > 1]}"
 
 
 class TestAccountToolsAdditional:
@@ -242,7 +266,11 @@ class TestAccountToolsAdditional:
 
         result = json.loads(
             update_contact_info.invoke(
-                {"user_id": "USR-2847", "field": "phone", "new_value": "+44 7700 999999"}
+                {
+                    "user_id": "USR-2847",
+                    "field": "phone",
+                    "new_value": "+44 7700 999999",
+                }
             )
         )
         assert result["success"] is True
@@ -380,7 +408,13 @@ class TestPaymentToolsAdditional:
     def test_cancel_standing_order(self):
         from src.tools.payments import cancel_standing_order
 
-        result = json.loads(cancel_standing_order.invoke({"order_id": "SO-101"}))
+        # The body, without the confirmation gate the tool now carries — that
+        # the gate stops it is asserted in tests/test_confirmation_gate.py:1.
+        result = json.loads(
+            cancel_standing_order.func.__wrapped__(
+                merchant="Landlord - Premier Properties"
+            )
+        )
         assert result["success"] is True
         assert result["status"] == "cancelled"
         assert "cancelled_at" in result
