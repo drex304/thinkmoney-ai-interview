@@ -12,11 +12,27 @@ class AgentState(TypedDict):
         messages: Conversation message history (auto-appended via add_messages reducer).
         current_agent: Name of the currently active agent node.
         user_info: Mock customer context (user_id, name, account_id, etc.).
+        unresolved_card_subs: WORK QUEUE — the card-on-file subscriptions
+            still needing guidance on how to cancel with the merchant. It is
+            deliberately not an inventory of the card subscriptions that
+            exist. The router re-reads it every
+            time control leaves the subscriptions agent, so the cancellation
+            research node must remove the entries it handled as part of its
+            state update. Left undrained, the router sends control back to
+            cancellation research forever and the turn aborts at LangGraph's
+            recursion limit of 25.
+        offered_subscriptions: the merchants, in order, last offered to the
+            customer when a write named none they had asked for. Held so the
+            answer can be bound to the question: told "1. Netflix 2. Shared
+            Netflix", customers reply "2", and without the list that answer
+            identifies nothing and the same question gets asked again forever.
     """
 
     messages: Annotated[list, add_messages]
     current_agent: str
     user_info: dict
+    unresolved_card_subs: list
+    offered_subscriptions: list
 
 
 # Mock customer identity used throughout the exercise.
