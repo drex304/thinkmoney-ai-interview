@@ -4,7 +4,7 @@ A multi-agent customer service system built with [LangGraph](https://github.com/
 
 The provided system was a triage agent with a knowledge base and 22 mock tools, and no
 sub-agents. This submission adds a **subscription manager**: it detects recurring payments
-across three payment rails, tells the customer what they actually cost, finds eight distinct
+across three payment rails, tells the customer what they actually cost, finds nine distinct
 ways to spend less, and then cancels or blocks them — pausing for explicit confirmation
 before any money-affecting call.
 
@@ -81,10 +81,10 @@ by `tests/test_subscriptions.py:200`.
 **Getting to the subscriptions agent is model-judged, unlike everything after it.** The
 deterministic handoff described [below](#why-delegation-is-deterministic-not-model-judged)
 governs subscriptions → cancellation research. The *front door* does not: triage decides
-whether to call `route_to_agent` (`src/agents/triage.py:30`), and there is no keyword
-fallback — `_get_route_target` (`src/graph.py:57`) only reads the tool call the model chose
+whether to call `route_to_agent` (`src/agents/triage.py:31`), and there is no keyword
+fallback — `_get_route_target` (`src/graph.py:61`) only reads the tool call the model chose
 to make. A prompt that never says "subscription" relies on the triage model connecting it to
-the agent description in `src/graph.py:38`. *"Where can I save money?"* is the weakest of
+the agent description in `src/graph.py:43`. *"Where can I save money?"* is the weakest of
 these: it also matches triage's own "general question → search the knowledge base" guideline
 (`src/agents/triage.py:69`), so a smaller model may answer it from the knowledge base and
 never route at all. If a prompt lands on triage instead, say "my subscriptions" explicitly
@@ -104,6 +104,7 @@ Can I keep Spotify but pay less?         -> downgrade Premium -> Free           
 Did I forget to cancel a free trial?     -> Adobe £0.00 -> £9.99                        £119.88
 Any subscriptions about to renew?        -> Namecheap domain renewal, ~11 days out       £79.99
 Do any of my subscriptions overlap?      -> Apple iCloud+ vs Google One, both cloud       £35.88
+Could I pay less for Netflix?            -> Standard -> with adverts £132.00  (superseded)
 Would paying annually be cheaper?        -> Adobe monthly -> annual   £24.00  (superseded)
 Has anything gone up in price?           -> Spotify £11.99 -> £12.99  £12.00  (superseded)
 
@@ -116,19 +117,20 @@ Cancel my gym membership                 -> card-on-file: handoff to cancellatio
 Cancel everything                        -> refuses to sweep up the rent
 ```
 
-The eight strategy prompts do not each trigger a different analysis. `find_recurring_payments`
-returns the whole report on every call, so all eight findings are already in the payload; the
+The nine strategy prompts do not each trigger a different analysis. `find_recurring_payments`
+returns the whole report on every call, so all nine findings are already in the payload; the
 prompt only steers which part of it the agent narrates. The figure on each line is what the
 tool put in front of the model, not a guarantee about the wording of the reply.
 
 `*` The £528.00 is **conditional**, not identified — it counts only if you tell the agent
 you have stopped using the gym. It is reported separately for that reason.
 
-Two of those savings are **detected but not counted**. The Adobe annual switch (£24.00) is
-superseded by the larger converted-trial finding (£119.88), and the Spotify price rise
-(£12.00) by the downgrade (£155.88) — one service can only bank one saving, so the report
-carries a `superseded` list alongside the counted `strategies`. Ask about them by name and
-the agent still answers; they just do not double-count into £1,219.63.
+Three of those savings are **detected but not counted**. The Netflix downgrade (£132.00) is
+superseded by the duplicate finding (£300.00), the Adobe annual switch (£24.00) by the larger
+converted-trial finding (£119.88), and the Spotify price rise (£12.00) by the downgrade
+(£155.88) — one service can only bank one saving, so the report carries a `superseded` list
+alongside the counted `strategies`. Ask about them by name and the agent still answers; they
+just do not double-count into £1,219.63.
 
 Also worth trying, because they exercise the honest-degradation paths:
 
@@ -203,7 +205,7 @@ the list and then, unprompted, gave the cancellation steps for a gym — five di
 lookups to produce advice nobody had asked for. The fix was not to make delegation
 model-judged after all; it was to notice the trigger was reading the *data* when it should
 have been reading the *request*. `card_subs_needing_research`
-(`src/agents/subscriptions/agent.py:69`) does the narrowing, and
+(`src/agents/subscriptions/agent.py:128`) does the narrowing, and
 `tests/test_delegation.py::TestReadOnlyTurn` pins that a question naming no merchant never
 reaches the research agent.
 
